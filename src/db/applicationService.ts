@@ -157,6 +157,61 @@ export class ApplicationService {
       application: newRecord,
     };
   }
+
+  /**
+   * Phase 4: Evaluates follow-up eligibility for a specific application record and generates AI draft if eligible.
+   */
+  async evaluateFollowUpForApplication(
+    application: ApplicationRecord,
+    followUpAgent?: any,
+    referenceDate: Date = new Date()
+  ): Promise<ApplicationRecord> {
+    const { evaluateFollowUpEligibility } = await import('../ai/followUpEvaluator.js');
+    const decision = evaluateFollowUpEligibility(application, referenceDate);
+
+    const nowIso = new Date().toISOString();
+    let draftRecord = application.followUpDraft || null;
+
+    if (decision.isEligible && followUpAgent) {
+      try {
+        const { generateFollowUpDraft } = await import('../ai/followUpGenerator.js');
+        draftRecord = await generateFollowUpDraft(followUpAgent, application, decision.reason);
+      } catch (err: unknown) {
+        console.warn(`[CareerPilot FollowUp] Could not generate draft for ${application.company}:`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    const updatedRecord: ApplicationRecord = {
+      ...application,
+      followUpEligible: decision.isEligible,
+      followUpReason: decision.reason,
+      followUpStatus: decision.isEligible ? (draftRecord ? 'DRAFTED' : 'RECOMMENDED') : 'NOT_RECOMMENDED',
+      followUpDraft: draftRecord,
+      lastFollowUpEvaluatedAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    await this.repo.save(updatedRecord);
+    return updatedRecord;
+  }
+
+  /**
+   * Phase 4: Evaluates follow-up eligibility for all applications in DynamoDB.
+   */
+  async evaluateAllApplicationsForFollowUp(
+    followUpAgent?: any,
+    referenceDate: Date = new Date()
+  ): Promise<ApplicationRecord[]> {
+    const allApps = await this.repo.listAll();
+    const results: ApplicationRecord[] = [];
+
+    for (const app of allApps) {
+      const updated = await this.evaluateFollowUpForApplication(app, followUpAgent, referenceDate);
+      results.push(updated);
+    }
+
+    return results;
+  }
 }
 
 export const applicationService = new ApplicationService();

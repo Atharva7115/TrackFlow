@@ -1,5 +1,6 @@
 import { fetchRecentEmails } from './gmail/fetchEmails.js';
 import { createCareerClassifierAgent } from './ai/agent.js';
+import { createFollowUpAgent } from './ai/followUpGenerator.js';
 import { classifyEmailsBatch } from './ai/classifier.js';
 import { evaluatePreFilter } from './filters/careerEmailFilter.js';
 import { verifyTableExists } from './db/dynamodb.js';
@@ -9,7 +10,7 @@ import { config } from './config/env.js';
 
 async function main(): Promise<void> {
   console.log('========================================');
-  console.log('CareerPilot — Phase 3: Application Tracker');
+  console.log('CareerPilot — Phase 4: Follow-up Intelligence');
   console.log('========================================');
   console.log('AI Provider : Amazon Bedrock');
   console.log(`Model       : Claude 3 Haiku (${config.bedrockModelId})`);
@@ -55,7 +56,7 @@ async function main(): Promise<void> {
     const agent = createCareerClassifierAgent();
     const classifiedResults = await classifyEmailsBatch(agent, batchToProcess);
 
-    // 4. Application Persistence to DynamoDB
+    // 4. Application Persistence to DynamoDB (Phase 3)
     console.log('3. Persisting application updates to Amazon DynamoDB...\n');
 
     let careerEmailCount = 0;
@@ -98,9 +99,14 @@ async function main(): Promise<void> {
       }
     }
 
-    // 5. Print Concise CLI Summary
+    // 5. Phase 4: Follow-Up Intelligence & AI Draft Generation
+    console.log('4. Evaluating Follow-Up Intelligence & Generating AI Drafts...\n');
+    const followUpAgent = createFollowUpAgent();
+    const updatedApplications = await applicationService.evaluateAllApplicationsForFollowUp(followUpAgent);
+
+    // 6. Print Concise CLI Summary
     console.log('========================================');
-    console.log('CareerPilot — Phase 3 Execution Summary');
+    console.log('CareerPilot — Phase 4 Execution Summary');
     console.log('========================================\n');
 
     console.log(`Emails fetched: ${allEmails.length}`);
@@ -115,36 +121,39 @@ async function main(): Promise<void> {
     console.log(`  Updated applications: ${updatedAppsCount}`);
     console.log(`  Skipped (non-app / duplicates): ${skippedDbCount}\n`);
 
-    if (trackedApplications.length > 0) {
-      console.log('Active Applications Ingested:');
-      console.log('----------------------------------------');
-      // Deduplicate by applicationId for display
-      const displayed = new Map<string, ApplicationRecord>();
-      for (const app of trackedApplications) {
-        displayed.set(app.applicationId, app);
-      }
+    const eligibleApps = updatedApplications.filter((app) => app.followUpEligible);
+    console.log('Follow-Up Intelligence (Phase 4):');
+    console.log(`  Total applications evaluated: ${updatedApplications.length}`);
+    console.log(`  Eligible for follow-up      : ${eligibleApps.length}\n`);
 
-      for (const app of displayed.values()) {
+    if (eligibleApps.length > 0) {
+      console.log('Recommended Follow-Ups & AI Generated Drafts:');
+      console.log('========================================');
+      for (const app of eligibleApps) {
         console.log(`Company : ${app.company}`);
         console.log(`Role    : ${app.role}`);
         console.log(`Status  : ${app.status}`);
-        if (app.deadline) {
-          console.log(`Deadline: ${app.deadline}`);
+        console.log(`Reason  : ${app.followUpReason}`);
+
+        if (app.followUpDraft) {
+          console.log('\n--- AI Generated Draft (Review Before Sending) ---');
+          console.log(`Subject: ${app.followUpDraft.subject}\n`);
+          console.log(app.followUpDraft.body);
+          console.log('--------------------------------------------------');
         }
-        if (app.eventDate) {
-          console.log(`Event   : ${app.eventDate}`);
-        }
-        console.log(`Emails  : ${app.emailCount}`);
-        console.log('----------------------------------------');
+        console.log('========================================');
       }
     } else {
-      console.log('No new application state updates recorded in this run.');
+      console.log('No applications currently require a follow-up email.');
     }
+
+    console.log('\n[HUMAN-IN-THE-LOOP MANDATORY]');
+    console.log('CareerPilot will NEVER automatically send emails. Drafts are generated and saved for candidate review.');
 
     console.log('\n========================================');
   } catch (error: unknown) {
     console.error('\n========================================');
-    console.error('CareerPilot Phase 3 Error');
+    console.error('CareerPilot Phase 4 Error');
     console.error('========================================');
     if (error instanceof Error) {
       console.error(error.message);
@@ -157,3 +166,4 @@ async function main(): Promise<void> {
 }
 
 main();
+

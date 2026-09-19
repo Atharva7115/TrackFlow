@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "fetch-emails": "tsx src/index.ts",
+    "server": "tsx src/api/server.ts",
+    "test": "tsx src/tests/runAllTests.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },

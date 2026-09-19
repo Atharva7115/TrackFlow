@@ -55,3 +55,43 @@ Snippet: ${email.snippet}
 Body:
 ${bodyContent || '(Empty body)'}`;
 }
+
+export const CAREER_PILOT_FOLLOW_UP_PROMPT = `You are CareerPilot's professional Email Draft Assistant for student job applicants.
+Your task is to draft a polite, professional, concise, and respectful follow-up email to a hiring team or recruiter for a specific job application.
+
+CRITICAL ZERO-HALLUCINATION RULES:
+1. NEVER invent or hallucinate recruiter names, interviewer names, dates, locations, or fake facts.
+2. If the recruiter's name is NOT explicitly present in the provided notes or record, use a polite neutral greeting such as "Dear Hiring Team" or "Dear [Company Name] Recruiting Team".
+3. Use ONLY the provided company name, job role, and verified event dates/notes.
+4. Keep the tone polite, professional, concise (3-4 paragraphs max), and enthusiastic.
+5. Emphasize candidate interest and inquire respectfully about the application timeline or next steps.
+6. Provide a clear subject line and body text suitable for a human candidate to review before sending.`;
+
+export interface ApplicationFollowUpContext {
+  company: string;
+  role: string;
+  status: string;
+  lastActivityAt: string;
+  applicationDate?: string | null;
+  deadline?: string | null;
+  eventDate?: string | null;
+  notes?: string | null;
+  reason?: string;
+}
+
+export function formatFollowUpPrompt(context: ApplicationFollowUpContext): string {
+  return `Please generate a professional follow-up email draft for the following job application context:
+
+Company Name       : ${context.company}
+Job Title / Role   : ${context.role}
+Current Status     : ${context.status}
+Last Activity Date : ${context.lastActivityAt}
+Application Date   : ${context.applicationDate || 'N/A'}
+Assessment Deadline: ${context.deadline || 'N/A'}
+Interview Date     : ${context.eventDate || 'N/A'}
+Recent Notes       : ${context.notes || 'N/A'}
+Follow-Up Reason   : ${context.reason || 'Routine status check after waiting period'}
+
+Draft a polite, tailored follow-up email for the candidate to review.`;
+}
+
