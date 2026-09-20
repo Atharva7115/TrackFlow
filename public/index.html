@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareerPilot — Application Tracker & Follow-Up Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-icon">🚀</div>
+        <div>
+          <h1>CareerPilot <span>TrackFlow</span></h1>
+          <p class="subtitle">AI-Powered Application State Management & Follow-up Intelligence</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="badge badge-aws">AWS Bedrock + DynamoDB</span>
+        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Data</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Human in the Loop Safeguard Banner -->
+      <div class="banner banner-info">
+        <div class="banner-icon">🛡️</div>
+        <div>
+          <strong>Human-in-the-Loop Safeguard:</strong> CareerPilot only tracks application state and generates follow-up drafts. It <em>never</em> sends emails automatically. "Mark as Sent" records your manual follow-up in DynamoDB.
+        </div>
+      </div>
+
+      <!-- KPI Metrics Row -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="kpiTotal">0</div>
+          <div class="metric-label">Total Tracked Applications</div>
+        </div>
+        <div class="metric-card metric-warning">
+          <div class="metric-value" id="kpiFollowUps">0</div>
+          <div class="metric-label">Follow-Ups Recommended</div>
+        </div>
+        <div class="metric-card metric-info">
+          <div class="metric-value" id="kpiOas">0</div>
+          <div class="metric-label">Active OAs & Assessments</div>
+        </div>
+        <div class="metric-card metric-success">
+          <div class="metric-value" id="kpiInterviews">0</div>
+          <div class="metric-label">Interviews Scheduled</div>
+        </div>
+      </section>
+
+      <!-- Follow-Up Action Queue Section -->
+      <section class="section-card follow-up-section">
+        <div class="section-header">
+          <h2>✉️ Follow-Up Intelligence & Draft Review Console</h2>
+          <span class="badge badge-warning" id="followUpCountBadge">0 Pending</span>
+        </div>
+        <p class="section-desc">Review AI-generated follow-up email drafts powered by Amazon Bedrock. Copy to your email client or record status.</p>
+        
+        <div id="followUpList" class="follow-up-list">
+          <div class="empty-state">Loading follow-up queue...</div>
+        </div>
+      </section>
+
+      <!-- Applications Pipeline Table Section -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>📋 Active Application Pipeline</h2>
+          <div class="table-controls">
+            <input type="text" id="searchInput" placeholder="Search company or role..." class="search-input">
+            <select id="statusFilter" class="select-filter">
+              <option value="ALL">All Statuses</option>
+              <option value="APPLIED">APPLIED</option>
+              <option value="OA_RECEIVED">OA_RECEIVED</option>
+              <option value="OA_COMPLETED">OA_COMPLETED</option>
+              <option value="INTERVIEW">INTERVIEW</option>
+              <option value="OFFER">OFFER</option>
+              <option value="REJECTED">REJECTED</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="app-table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Last Activity</th>
+                <th>OA Deadline</th>
+                <th>Interview Date</th>
+                <th>Follow-Up Status</th>
+              </tr>
+            </thead>
+            <tbody id="appTableBody">
+              <tr><td colspan="7" class="empty-state">Loading applications...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>CareerPilot (TrackFlow) — Phase 5 Final Hackathon Build • Powered by AWS Bedrock, DynamoDB, Lambda, API Gateway & Amplify</p>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast">Draft copied to clipboard!</div>
+  <script src="app.js"></script>
+</body>
+</html>

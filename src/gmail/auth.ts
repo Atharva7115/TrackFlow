@@ -138,6 +138,14 @@ function listenForAuthCode(port: number): Promise<{ code: string; server: http.S
  * Loads credentials.json and initializes Google OAuth2Client.
  */
 export async function getOAuth2Client(): Promise<OAuth2Client> {
+  const isLambda = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const isSecretMode = config.gmailAuthMode === 'secret';
+
+  if (isLambda || isSecretMode) {
+    const { getSecretsManagerOAuth2Client } = await import('./secretsAuth.js');
+    return getSecretsManagerOAuth2Client();
+  }
+
   if (!fs.existsSync(config.credentialsPath)) {
     throw new Error(
       `\n[CareerPilot Error] Google OAuth credentials file not found!\n` +
