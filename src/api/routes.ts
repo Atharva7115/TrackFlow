@@ -14,6 +14,16 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+let activeRepo: IApplicationRepository | null = null;
+
+export function setActiveRepository(repo: IApplicationRepository | null): void {
+  activeRepo = repo;
+}
+
+export function getActiveRepository(): IApplicationRepository {
+  return activeRepo || applicationRepository;
+}
+
 /**
  * Handles incoming API request path and method, returning standard response object.
  * Used by both AWS Lambda Handler and local Dev Server.
@@ -22,7 +32,7 @@ export async function handleApiRequest(
   method: string,
   path: string,
   bodyText?: string | null,
-  repo: IApplicationRepository = applicationRepository
+  repo: IApplicationRepository = getActiveRepository()
 ): Promise<RouteResponse> {
   const normMethod = method.toUpperCase();
   const normPath = path.split('?')[0].replace(/\/$/, '') || '/';
