@@ -59,7 +59,33 @@ export class ApplicationService {
   constructor(private readonly repo: IApplicationRepository = applicationRepository) {}
 
   /**
+   * Retrieves the set of all email IDs already processed into tracked applications
+   * OR recorded in the META#ignoredEmails memory list.
+   * Used for zero-cost pre-AI email deduplication.
+   */
+  async getAllKnownEmailIds(): Promise<Set<string>> {
+    const allApps = await this.repo.listAll();
+    const ignored = await this.repo.getIgnoredEmailIds();
+
+    const known = new Set<string>(ignored);
+
+    for (const app of allApps) {
+      if (Array.isArray(app.processedEmailIds)) {
+        for (const id of app.processedEmailIds) {
+          if (id) known.add(id);
+        }
+      }
+      if (app.sourceEmailId) {
+        known.add(app.sourceEmailId);
+      }
+    }
+
+    return known;
+  }
+
+  /**
    * Processes a single analyzed email into an application record in DynamoDB.
+   * If non-application / job recommendation, records the email ID into META#ignoredEmails.
    */
   async processCareerEmail(
     email: GmailEmail,
@@ -67,6 +93,7 @@ export class ApplicationService {
   ): Promise<ApplicationProcessResult> {
     // 1. Filter out non-application emails and job recommendations
     if (!analysis.isApplicationRelated || analysis.status === 'NOT_APPLICABLE' || analysis.emailType === 'JOB_RECOMMENDATION') {
+      await this.repo.addIgnoredEmailIds([email.id]);
       return {
         action: 'SKIPPED_NOT_APPLICATION',
         reason: `Email is not an active application lifecycle event (type: ${analysis.emailType}, status: ${analysis.status}).`,
@@ -159,33 +186,58 @@ export class ApplicationService {
   }
 
   /**
-   * Phase 4: Evaluates follow-up eligibility for a specific application record and generates AI draft if eligible.
+   * Phase 4 & 6: Evaluates follow-up eligibility for a specific application record.
+   * Generates AI draft ONLY if eligible and no draft currently exists.
+   * Never overwrites or touches human-owned followUpStatus (SENT, DISMISSED).
    */
   async evaluateFollowUpForApplication(
     application: ApplicationRecord,
     followUpAgent?: any,
     referenceDate: Date = new Date()
   ): Promise<ApplicationRecord> {
+    // Human-owned status protection: return untouched at the very top.
+    // Dashboard actions strictly set 'SENT' or 'DISMISSED'.
+    if (application.followUpStatus === 'SENT' || application.followUpStatus === 'DISMISSED') {
+      return application;
+    }
+
     const { evaluateFollowUpEligibility } = await import('../ai/followUpEvaluator.js');
     const decision = evaluateFollowUpEligibility(application, referenceDate);
 
     const nowIso = new Date().toISOString();
     let draftRecord = application.followUpDraft || null;
 
-    if (decision.isEligible && followUpAgent) {
-      try {
-        const { generateFollowUpDraft } = await import('../ai/followUpGenerator.js');
-        draftRecord = await generateFollowUpDraft(followUpAgent, application, decision.reason);
-      } catch (err: unknown) {
-        console.warn(`[CareerPilot FollowUp] Could not generate draft for ${application.company}:`, err instanceof Error ? err.message : err);
+    if (decision.isEligible) {
+      // Only generate draft via Bedrock if no existing draft is present
+      if (!draftRecord && followUpAgent) {
+        try {
+          const { generateFollowUpDraft } = await import('../ai/followUpGenerator.js');
+          draftRecord = await generateFollowUpDraft(followUpAgent, application, decision.reason);
+        } catch (err: unknown) {
+          console.warn(`[CareerPilot FollowUp] Could not generate draft for ${application.company}:`, err instanceof Error ? err.message : err);
+        }
       }
+
+      const updatedRecord: ApplicationRecord = {
+        ...application,
+        followUpEligible: true,
+        followUpReason: decision.reason,
+        followUpStatus: draftRecord ? 'DRAFTED' : 'RECOMMENDED',
+        followUpDraft: draftRecord,
+        lastFollowUpEvaluatedAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      await this.repo.save(updatedRecord);
+      return updatedRecord;
     }
 
+    // Ineligible: restore original Phase 4 behavior (keeps existing draftRecord)
     const updatedRecord: ApplicationRecord = {
       ...application,
-      followUpEligible: decision.isEligible,
+      followUpEligible: false,
       followUpReason: decision.reason,
-      followUpStatus: decision.isEligible ? (draftRecord ? 'DRAFTED' : 'RECOMMENDED') : 'NOT_RECOMMENDED',
+      followUpStatus: 'NOT_RECOMMENDED',
       followUpDraft: draftRecord,
       lastFollowUpEvaluatedAt: nowIso,
       updatedAt: nowIso,

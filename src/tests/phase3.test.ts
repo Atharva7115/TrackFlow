@@ -7,9 +7,10 @@ import type { GmailEmail } from '../gmail/types.js';
 import type { CareerEmailAnalysis } from '../ai/schemas.js';
 
 class InMemoryApplicationRepository implements IApplicationRepository {
-  public store = new Map<string, ApplicationRecord>();
+  public store = new Map<string, any>();
 
   async findById(applicationId: string): Promise<ApplicationRecord | null> {
+    if (applicationId.startsWith('META#')) return null;
     return this.store.get(applicationId) || null;
   }
 
@@ -18,7 +19,29 @@ class InMemoryApplicationRepository implements IApplicationRepository {
   }
 
   async listAll(): Promise<ApplicationRecord[]> {
-    return Array.from(this.store.values());
+    return Array.from(this.store.values()).filter((r: any) => !r.applicationId?.startsWith('META#'));
+  }
+
+  async getIgnoredEmailIds(): Promise<string[]> {
+    const item = this.store.get('META#ignoredEmails');
+    return Array.isArray(item?.ignoredEmailIds) ? item.ignoredEmailIds : [];
+  }
+
+  async addIgnoredEmailIds(emailIds: string[]): Promise<void> {
+    if (emailIds.length === 0) return;
+    const existing = await this.getIgnoredEmailIds();
+    const combined = [...existing];
+    for (const id of emailIds) {
+      if (!combined.includes(id)) {
+        combined.push(id);
+      }
+    }
+    const capped = combined.length > 1000 ? combined.slice(combined.length - 1000) : combined;
+    this.store.set('META#ignoredEmails', {
+      applicationId: 'META#ignoredEmails',
+      ignoredEmailIds: capped,
+      updatedAt: new Date().toISOString(),
+    });
   }
 }
 

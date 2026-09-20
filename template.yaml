@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CareerPilot TrackFlow - Phase 6 Automated Scheduled Pipeline (Lambda + EventBridge)
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 512
+    Runtime: nodejs22.x
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+  CareerPilotPipelineFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CareerPilot-ScheduledPipeline
+      Description: Automated 3-hour scheduled ingestion & classification pipeline for CareerPilot
+      CodeUri: .
+      Handler: scheduledPipeline.handler
+      Environment:
+        Variables:
+          GMAIL_SECRET_NAME: CareerPilot/GmailOAuth
+          DYNAMODB_TABLE_NAME: CareerPilot-Applications
+          BEDROCK_MODEL_ID: us.anthropic.claude-3-haiku-20240307-v1:0
+          GMAIL_QUERY: newer_than:30d
+          GMAIL_MAX_RESULTS: '50'
+          AI_MAX_EMAILS: '5'
+          MAX_EMAIL_BODY_CHARS: '12000'
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+      Events:
+        ThreeHourSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(3 hours)
+            Description: Triggers CareerPilot ingestion pipeline every 3 hours
+            Enabled: true
+      Policies:
+        - Statement:
+            - Sid: DynamoDBAccess
+              Effect: Allow
+              Action:
+                - dynamodb:DescribeTable
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:Scan
+              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/CareerPilot-Applications'
+
+            - Sid: BedrockModelAccess
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+                - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+
+            - Sid: SecretsManagerAccess
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:CareerPilot/GmailOAuth*'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/scheduledPipeline.ts
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        Banner:
+          - js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
+
+  PipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/CareerPilot-ScheduledPipeline
+      RetentionInDays: 14
+
+Outputs:
+  PipelineFunctionArn:
+    Description: CareerPilot Scheduled Pipeline Lambda Function ARN
+    Value: !GetAtt CareerPilotPipelineFunction.Arn

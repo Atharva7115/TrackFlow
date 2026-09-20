@@ -7,6 +7,8 @@ dotenv.config();
 export interface AppConfig {
   credentialsPath: string;
   tokenPath: string;
+  gmailSecretName: string;
+  gmailAuthMode: string;
   gmailQuery: string;
   gmailMaxResults: number;
   awsRegion: string;
@@ -21,6 +23,7 @@ export interface AppConfig {
 }
 
 const DEFAULT_QUERY = 'newer_than:30d';
+const DEFAULT_GMAIL_SECRET_NAME = 'CareerPilot/GmailOAuth';
 const DEFAULT_MAX_RESULTS = 20;
 const DEFAULT_AI_MAX_EMAILS = 5;
 const DEFAULT_MAX_BODY_CHARS = 12000;
@@ -46,6 +49,8 @@ export const config: AppConfig = {
   tokenPath: process.env.GMAIL_TOKEN_PATH
     ? path.resolve(process.cwd(), process.env.GMAIL_TOKEN_PATH)
     : path.resolve(process.cwd(), 'token.json'),
+  gmailSecretName: process.env.GMAIL_SECRET_NAME?.trim() || DEFAULT_GMAIL_SECRET_NAME,
+  gmailAuthMode: process.env.GMAIL_AUTH_MODE?.trim() || '',
   gmailQuery: process.env.GMAIL_QUERY?.trim() || DEFAULT_QUERY,
   gmailMaxResults: parsePositiveInt(process.env.GMAIL_MAX_RESULTS, DEFAULT_MAX_RESULTS),
   awsRegion: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || DEFAULT_AWS_REGION,

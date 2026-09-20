@@ -10,6 +10,9 @@ dist/
 # Google OAuth credentials and cached access/refresh tokens
 credentials.json
 token.json
+secret.json
+response.json
+.aws-sam/
 
 # Logs
 *.log
